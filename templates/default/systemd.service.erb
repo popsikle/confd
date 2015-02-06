@@ -1,0 +1,10 @@
+[Unit]
+Description=Confd
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/confd -config-file <%= node['confd']['confdir'] %>/confd.toml
+
+[Install]
+WantedBy=multi-user.target

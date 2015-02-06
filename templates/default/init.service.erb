@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+#
+# confd
+#
+<% if node.platform_family?('debian') %>
+### BEGIN INIT INFO
+# Provides:          confd
+# Required-Start:    $network $remote_fs $named
+# Required-Stop:     $network $remote_fs $named
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starts confd
+# Description:       Starts confd using start-stop-daemon
+### END INIT INFO
+<% else %>
+# chkconfig:   - 57 47
+# description: confd
+# processname: confd
+# config:      <%= node['confd']['confdir'] %>/confd.toml
+<% end %>
+
+# Source networking configuration
+#
+if [ -f /etc/sysconfig/network ]; then source /etc/sysconfig/network; fi
+
+# Exit if networking is not up
+#
+[ "$NETWORKING" = "no" ] && exit
+
+PIDFILE='<%= node.confd[:pid_file] %>'
+CHECK_PID_RUNNING=$(ps ax | grep 'confd' | grep '<%= node['confd']['confdir'] %>/confd.toml' | grep -v 'grep' | sed 's/^\s*\([0-9]*\)\s.*/\1/')
+
+start() {
+    timeout=20
+    if [ -f $PIDFILE ]; then
+      echo -e "PID file found in $PIDFILE"
+      run_pid="$(cat $PIDFILE)"
+      pid_running="$( ps ax | grep 'confd' | grep $run_pid )"
+
+      if [ ! -z "$pid_running" ] ; then
+        echo -e "\033[31;1mPID $run_pid still alive, confd already running...\033[0m"
+        return 1
+      fi
+    fi
+
+    echo -en "\033[1mStarting confd...\033[0m"
+    touch $PIDFILE
+    <% if node.platform_family == 'debian' %>
+    start-stop-daemon --background --start --quiet --make-pidfile --pidfile $PIDFILE --exec /usr/local/bin/confd -- -config-file <%= node['confd']['confdir'] %>/confd.toml
+    <% else %>
+    /usr/local/bin/confd -config-file <%= node['confd']['confdir'] %>/confd.toml &
+    echo $! > $PIDFILE
+    <% end %>
+
+    # ugly hack
+    sleep $timeout
+    run_pid="$(cat $PIDFILE)"
+    pid_running="$( ps ax | grep 'confd' | grep $run_pid )"
+
+    if [ ! -z "$pid_running" ]; then
+      echo -e " \e[32m[OK]\e[0m"
+      return 0
+    else
+      echo -e " \e[31m[FAILURE]\e[0m"
+      rm $PIDFILE
+      return 1
+    fi
+}
+
+stop() {
+    if [[ -f $PIDFILE ]]; then
+      echo -n -e "\033[1mStopping confd...\033[0m"
+
+      run_pid="$(cat $PIDFILE)"
+      pid_running="$( ps ax | grep 'confd' | grep $run_pid )"
+
+      # REMOVE PIDFILE AND EXIT IF PROCESS NOT RUNNING
+      if [ -z "$pid_running" ]; then
+        echo -e "\033[1mPID file found, but no matching process running?\033[0m"
+        echo "Removing PID file..."
+        rm $PIDFILE
+        return 0
+      fi
+
+      # KILL PROCESS
+      pid=$(cat $PIDFILE)
+      kill $(cat $PIDFILE)
+      r=$?
+
+      # Check for process
+      timeout=0
+      while [ $(ps -p $pid | wc -l ) -gt '1' ]; do
+        echo -n '.'
+        (( timeout ++))
+        if [ $timeout -gt '30' ]; then return; fi
+        sleep 1
+      done
+      rm $PIDFILE
+      echo -e " \e[32m[OK]\e[0m"
+
+      return $r
+    else
+      echo -e "\033[1mNo PID file found -- confd not running?\033[0m"
+    fi
+}
+
+restart() {
+    stop
+    timeout=30
+    while [ $(ps ax | grep 'confd' | grep '<%= node['confd']['confdir'] %>/confd.toml' | grep -v 'grep' | wc -l ) -gt '0' ]; do
+      echo -n '.'
+      (( timeout-- ))
+      if [ $timeout -lt '1' ]; then echo ' Failed to Stop'; return 1; fi
+      sleep 1
+    done;
+    start
+}
+
+status() {
+  if [[ -f $PIDFILE ]]; then
+    run_pid="$(cat $PIDFILE)"
+    pid_running="$( ps ax | grep 'confd' | grep $run_pid )"
+
+    if [ -n "$pid_running" ]; then
+      echo -e "\033[1mconfd is running\033[0m"
+      return 0
+    else
+      echo -e "\033[1mconfd has crashed\033[0m"
+      return 2
+    fi
+  else
+    echo -e "\033[1mconfd is stopped\033[0m"
+    return 1
+  fi
+}
+
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  restart)
+        restart
+        ;;
+  status)
+        status
+        ;;
+  *)
+        echo $"Usage: $0 {start|stop|restart|status [-v]|}"
+        exit 1
+esac
+
+exit $?
