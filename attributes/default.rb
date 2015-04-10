@@ -1,5 +1,8 @@
-default['confd']['version'] = "0.7.1"
-default['confd']['sha256'] = "a3409fec4d18d80af857bea8be03264e50859e21570bcaaffe0b108ba751fef8"
+default['confd']['version'] = "0.9.0"
+default['confd']['checksum'] = "e08cab02277689a66afd28335b0398c26db95f6d1a6ae01cf45c8a6fc5639ae5"
+
+# Commit to build from source (not implemented yet)
+default['confd']['sha256'] = ""
 
 default['confd']['confdir'] = "/etc/confd"
 default['confd']['interval'] = "30"

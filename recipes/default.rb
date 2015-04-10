@@ -4,7 +4,7 @@ remote_file "/usr/local/bin/confd" do
   group "root"
   mode "0755"
   source "https://github.com/kelseyhightower/confd/releases/download/v#{node['confd']['version']}/confd-#{node['confd']['version']}-linux-amd64"
-  checksum "a3409fec4d18d80af857bea8be03264e50859e21570bcaaffe0b108ba751fef8"
+  checksum node['confd']['checksum']
 end
 
 directory "#{node['confd']['confdir']}/conf.d/" do
